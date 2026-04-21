@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --time=01:00:00
+#SBATCH --time=00:10:00
 
 # Activate spack env
 . ~/161588/spack/share/spack/setup-env.sh

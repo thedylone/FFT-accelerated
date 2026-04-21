@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(fft_serial LANGUAGES CXX)
+project(fft_omp LANGUAGES CXX)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -ffast-math -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -ffast-math")
 
 add_library(fft
     source/fft.cpp)
