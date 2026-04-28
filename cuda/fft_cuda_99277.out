@@ -1,0 +1,37 @@
+--- Compiling and running ... ---
+-- Configuring done (0.3s)
+-- Generating done (0.6s)
+-- Build files have been written to: /shared/home/yec361/project-yec361/cuda/build
+[100%] Built target main
+FFT CUDA
+--- GPU info ---
+NVIDIA L4, 23034 MiB, 570.172.08
+NVIDIA L4, 23034 MiB, 570.172.08
+NVIDIA L4, 23034 MiB, 570.172.08
+NVIDIA L4, 23034 MiB, 570.172.08
+
+GPU: NVIDIA L4  SMs: 58  Mem: 22574 MiB
+
+Correctness check (n=1024): PASSED
+Correctness check (n=65536): PASSED
+Correctness check (n=1048576): PASSED
+
+n,time_ms
+1024,0.234707
+2048,0.249535
+4096,0.262535
+8192,0.289825
+16384,0.335187
+32768,0.456667
+65536,0.657882
+131072,0.965766
+262144,1.58453
+524288,2.89429
+1048576,5.30554
+2097152,9.61102
+4194304,25.2504
+8388608,51.9849
+16777216,104.826
+33554432,210.942
+67108864,440.145
+--- Tidying ---
