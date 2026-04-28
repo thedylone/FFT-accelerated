@@ -76,7 +76,9 @@ __global__ void butterfly_kernel(cuDoubleComplex* __restrict__ a, int n, int hal
 ///
 /// direction = +1: forward FFT
 /// direction = -1: inverse FFT (caller must divide by n)
-void fft(Vec& a, int direction) {
+void fft(Vec& a, int direction, int block_size) {
+    assert(block_size >= 32 && block_size <= 1024 && "block_size must be between 32 and 1024");
+    assert(block_size % 32 == 0 && "block_size must be a multiple of 32");
     const int n = a.size();
     assert((n & (n - 1)) == 0 && "FFT size must be a power of 2");
 
@@ -88,15 +90,13 @@ void fft(Vec& a, int direction) {
     CUDA_CHECK(cudaMalloc(&d_a, (size_t)n * sizeof(cuDoubleComplex)));
     CUDA_CHECK(cudaMemcpy(d_a, a.data(), (size_t)n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice));
 
-    constexpr int BLOCK = 256;
-
-    bit_reverse_kernel<<<cdiv(n, BLOCK), BLOCK>>>(d_a, n, log2n);
+    bit_reverse_kernel<<<cdiv(n, block_size), block_size>>>(d_a, n, log2n);
     CUDA_CHECK(cudaGetLastError());
 
     for (int len = 2; len <= n; len <<= 1) {
         int half  = len >> 1;
         double angle = direction * 2.0 * PI / (double)len;
-        butterfly_kernel<<<cdiv(n / 2, BLOCK), BLOCK>>>(d_a, n, half, angle);
+        butterfly_kernel<<<cdiv(n / 2, block_size), block_size>>>(d_a, n, half, angle);
         CUDA_CHECK(cudaGetLastError());
     }
 

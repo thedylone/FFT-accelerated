@@ -7,7 +7,7 @@
 
 
 /// @brief correct if FFT then IFFT recovers the original signal
-bool correctness_check(std::size_t n) {
+bool correctness_check(std::size_t n, int block_size) {
     std::mt19937_64 rng(42);
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
@@ -25,7 +25,15 @@ bool correctness_check(std::size_t n) {
     return true;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    int block_size = 512;
+    if (argc > 1) block_size = std::atoi(argv[1]);
+    if (block_size <= 0 || block_size > 1024 || block_size % 32 != 0) {
+        std::cerr << "Error: block_size must be a multiple of 32 in [32, 1024]\n";
+        return 1;
+    }
+    std::cout << "Using block size: " << block_size << "\n\n";
+
     // Print GPU info
     int dev = 0;
     cudaDeviceProp prop;
@@ -36,14 +44,14 @@ int main() {
 
     // check for correctness
     for (std::size_t n : {1u<<10, 1u<<16, 1u<<20}) {
-        bool ok = correctness_check(n);
+        bool ok = correctness_check(n, block_size);
         std::cout << "Correctness check (n=" << n << "): "
                   << (ok ? "PASSED" : "FAILED") << "\n";
     }
     std::cout << "\n";
 
     // benchmark performance
-    std::cout << "n,time_ms\n";
+    std::cout << "block_size,n,time_ms\n";
 
     for (int exp = 10; exp <= 26; ++exp) {
         const std::size_t n = 1u << exp;
@@ -56,7 +64,7 @@ int main() {
         // warm-up 
         Vec tmp = a; 
         auto t0 = std::chrono::high_resolution_clock::now();
-        fft(tmp, +1);
+        fft(tmp, +1, block_size);
         auto t1 = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -73,12 +81,13 @@ int main() {
         // time copy + fft
         t0 = std::chrono::high_resolution_clock::now();
         for (int r = 0; r < REPS; ++r) {
-            Vec run = a; fft(run, +1);
+            Vec run = a; fft(run, +1, block_size);
         }
         t1 = std::chrono::high_resolution_clock::now();
         ms = std::chrono::duration<double, std::milli>(t1 - t0).count()
                     / REPS;
-        std::cout << n << "," << ms - copy_ms << "\n";
+        std::cout << block_size << "," << n << "," << ms - copy_ms << "\n";
+        std::cout.flush();
     }
     return 0;
 }

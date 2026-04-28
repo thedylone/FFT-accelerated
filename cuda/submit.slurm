@@ -20,12 +20,15 @@ echo "--- GPU info ---"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 echo ""
 
-OUTPUT=$(build/main)
-echo "$OUTPUT"
+echo "block_size,n,time_ms" > results.csv
 
-echo "n,time_ms" > results.csv
-# Append only numeric data rows to CSV
-echo "$OUTPUT" | awk -F',' '$1~/^[0-9]+$/ { print }' >> results.csv
+for BS in 32 64 128 256 512 1024; do
+    OUTPUT=$(build/main $BS)
+    echo "$OUTPUT"
+
+    # Append only numeric data rows to CSV
+    echo "$OUTPUT" | awk -F',' '$1~/^[0-9]+$/ { print }' >> results.csv
+done
 
 echo "--- Tidying ---"
 rm -r build
