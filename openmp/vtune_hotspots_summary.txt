@@ -1,0 +1,87 @@
+Elapsed Time: 40.958s
+    CPU Time: 566.526s
+        Effective Time: 249.033s
+        Spin Time: 311.253s
+         | A significant portion of CPU time is spent waiting. Use this metric
+         | to discover which synchronizations are spinning. Consider adjusting
+         | spin wait parameters, changing the lock implementation (for example,
+         | by backing off then descheduling), or adjusting the synchronization
+         | granularity.
+         |
+            Imbalance or Serial Spinning: 311.253s
+             | The threading runtime function related to time spent on imbalance
+             | or serial spinning consumed a significant amount of CPU time.
+             | This can be caused by a load imbalance, insufficient concurrency
+             | for all working threads, or busy waits of worker threads while
+             | serial code is executed. If there is an imbalance, apply dynamic
+             | work scheduling or reduce the size of work chunks or tasks. If
+             | there is insufficient concurrency, consider collapsing the outer
+             | and inner loops. If there is a wait for completion of serial
+             | code, explore options for parallelization with Intel Advisor,
+             | algorithm, or microarchitecture tuning of the application's
+             | serial code with VTune Profiler Basic Hotspots or
+             | Microarchitecture Exploration analysis respectively. For OpenMP*
+             | applications, use the Per-Barrier OpenMP Potential Gain metric
+             | set in the HPC Performance Characterization analysis to discover
+             | the reason for high imbalance or serial spin time.
+             |
+            Lock Contention: 0s
+            Other: 0s
+        Overhead Time: 6.239s
+            Creation: 6.239s
+            Scheduling: 0s
+            Reduction: 0s
+            Atomics: 0s
+            Other: 0s
+    Total Thread Count: 32
+    Paused Time: 0s
+
+Top Hotspots
+Function                      Module        CPU Time  % of CPU Time(%)
+----------------------------  ------------  --------  ----------------
+fft._omp_fn.0                 main          180.740s             31.9%
+gomp_team_barrier_wait_end    libgomp.so.1  171.802s             30.3%
+gomp_simple_barrier_wait      libgomp.so.1  136.730s             24.1%
+bit_reverse._omp_fn.0         main           42.546s              7.5%
+__memcpy_evex_unaligned_erms  libc.so.6      14.230s              2.5%
+[Others]                      N/A            20.477s              3.6%
+Effective Physical Core Utilization: 29.0% (6.956 out of 24)
+ | The metric value is low, which may signal a poor physical CPU cores
+ | utilization caused by:
+ |     - load imbalance
+ |     - threading runtime overhead
+ |     - contended synchronization
+ |     - thread/process underutilization
+ |     - incorrect affinity that utilizes logical cores instead of physical
+ |       cores
+ | Explore sub-metrics to estimate the efficiency of MPI and OpenMP parallelism
+ | or run the Locks and Waits analysis to identify parallel bottlenecks for
+ | other parallel runtimes.
+ |
+    Effective Logical Core Utilization: 28.4% (13.649 out of 48)
+     | The metric value is low, which may signal a poor logical CPU cores
+     | utilization. Consider improving physical core utilization as the first
+     | step and then look at opportunities to utilize logical cores, which in
+     | some cases can improve processor throughput and overall performance of
+     | multi-threaded applications.
+     |
+Collection and Platform Info
+    Application Command Line: build/main "32" 
+    Operating System: 6.1.166-197.305.amzn2023.x86_64 
+    Computer Name: general-dy-general-cr-3
+    Result Size: 15.4 MB 
+    Collection start time: 21:12:45 01/05/2026 UTC
+    Collection stop time: 21:13:26 01/05/2026 UTC
+    Collector Type: Driverless Perf per-process counting,User-mode sampling and tracing
+    CPU
+        Name: Intel(R) Xeon(R) Processor code named Cascadelake
+        Frequency: 3.000 GHz
+        Logical CPU Count: 48
+        Cache Allocation Technology
+            Level 2 capability: not detected
+            Level 3 capability: not detected
+
+If you want to skip descriptions of detected performance issues in the report,
+enter: vtune -report summary -report-knob show-issues=false -r <my_result_dir>.
+Alternatively, you may view the report in the csv format: vtune -report
+<report_name> -format=csv.
