@@ -1,0 +1,93 @@
+--- Compiling ---
+-- The CXX compiler identification is GNU 14.3.0
+-- The CUDA compiler identification is NVIDIA 12.8.93 with host compiler GNU 14.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /shared/courseSharedFolders/161588outer/161588/spack/var/spack/environments/CS-2050-gpu/.spack-env/view/bin/g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda-12.8/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- Configuring done (9.1s)
+-- Generating done (0.5s)
+-- Build files have been written to: /shared/home/yec361/project-yec361/cuda/build
+[ 25%] Building CUDA object CMakeFiles/main.dir/source/fft.cu.o
+[ 50%] Building CUDA object CMakeFiles/main.dir/source/main.cu.o
+[ 75%] Linking CUDA device code CMakeFiles/main.dir/cmake_device_link.o
+[100%] Linking CUDA executable main
+[100%] Built target main
+--- Nsight Systems (capture first 30s only) ---
+Using block size: 128
+
+GPU: NVIDIA L4  SMs: 58  Mem: 22574 MiB
+
+Correctness check (n=1024): PASSED
+Correctness check (n=65536): PASSED
+Correctness check (n=1048576): PASSED
+
+block_size,n,time_ms
+128,1024,0.298367
+128,2048,0.315445
+128,4096,0.318633
+128,8192,0.344103
+128,16384,0.406905
+128,32768,0.497732
+128,65536,0.742841
+128,131072,1.0462
+128,262144,1.78607
+128,524288,3.1315
+128,1048576,5.51581
+128,2097152,10.9673
+128,4194304,25.3118
+128,8388608,53.031
+128,16777216,110.096
+128,33554432,494.553
+Collecting data...
+Generating '/tmp/nsys-report-c619.qdstrm'
+[1/1] [0%                          ] nsys_report.nsys-rep[1/1] [0%                          ] nsys_report.nsys-rep[1/1] [5%                          ] nsys_report.nsys-rep[1/1] [=======37%                  ] nsys_report.nsys-rep[1/1] [====28%                     ] nsys_report.nsys-rep[1/1] [===22%                      ] nsys_report.nsys-rep[1/1] [==19%                       ] nsys_report.nsys-rep[1/1] [=16%                        ] nsys_report.nsys-rep[1/1] [14%                         ] nsys_report.nsys-rep[1/1] [12%                         ] nsys_report.nsys-rep[1/1] [11%                         ] nsys_report.nsys-rep[1/1] [10%                         ] nsys_report.nsys-rep[1/1] [9%                          ] nsys_report.nsys-rep[1/1] [8%                          ] nsys_report.nsys-rep[1/1] [7%                          ] nsys_report.nsys-rep[1/1] [6%                          ] nsys_report.nsys-rep[1/1] [5%                          ] nsys_report.nsys-rep[1/1] [5%                          ] nsys_report.nsys-rep[1/1] [6%                          ] nsys_report.nsys-rep[1/1] [8%                          ] nsys_report.nsys-rep[1/1] [9%                          ] nsys_report.nsys-rep[1/1] [11%                         ] nsys_report.nsys-rep[1/1] [12%                         ] nsys_report.nsys-rep[1/1] [14%                         ] nsys_report.nsys-rep[1/1] [=15%                        ] nsys_report.nsys-rep[1/1] [=16%                        ] nsys_report.nsys-rep[1/1] [==18%                       ] nsys_report.nsys-rep[1/1] [==19%                       ] nsys_report.nsys-rep[1/1] [==21%                       ] nsys_report.nsys-rep[1/1] [===22%                      ] nsys_report.nsys-rep[1/1] [===24%                      ] nsys_report.nsys-rep[1/1] [====25%                     ] nsys_report.nsys-rep[1/1] [====26%                     ] nsys_report.nsys-rep[1/1] [====28%                     ] nsys_report.nsys-rep[1/1] [=====29%                    ] nsys_report.nsys-rep[1/1] [=====31%                    ] nsys_report.nsys-rep[1/1] [=====32%                    ] nsys_report.nsys-rep[1/1] [======33%                   ] nsys_report.nsys-rep[1/1] [======35%                   ] nsys_report.nsys-rep[1/1] [=======36%                  ] nsys_report.nsys-rep[1/1] [=======38%                  ] nsys_report.nsys-rep[1/1] [=======39%                  ] nsys_report.nsys-rep[1/1] [========41%                 ] nsys_report.nsys-rep[1/1] [========42%                 ] nsys_report.nsys-rep[1/1] [=========43%                ] nsys_report.nsys-rep[1/1] [=========45%                ] nsys_report.nsys-rep[1/1] [=========46%                ] nsys_report.nsys-rep[1/1] [==========48%               ] nsys_report.nsys-rep[1/1] [==========49%               ] nsys_report.nsys-rep[1/1] [===========51%              ] nsys_report.nsys-rep[1/1] [===========52%              ] nsys_report.nsys-rep[1/1] [============54%             ] nsys_report.nsys-rep[1/1] [============55%             ] nsys_report.nsys-rep[1/1] [============57%             ] nsys_report.nsys-rep[1/1] [=============58%            ] nsys_report.nsys-rep[1/1] [=============60%            ] nsys_report.nsys-rep[1/1] [==============61%           ] nsys_report.nsys-rep[1/1] [==============62%           ] nsys_report.nsys-rep[1/1] [==============63%           ] nsys_report.nsys-rep[1/1] [===============65%          ] nsys_report.nsys-rep[1/1] [===============66%          ] nsys_report.nsys-rep[1/1] [================68%         ] nsys_report.nsys-rep[1/1] [================69%         ] nsys_report.nsys-rep[1/1] [================71%         ] nsys_report.nsys-rep[1/1] [=================72%        ] nsys_report.nsys-rep[1/1] [=================73%        ] nsys_report.nsys-rep[1/1] [========================100%] nsys_report.nsys-rep[1/1] [========================100%] nsys_report.nsys-rep
+Generated:
+    /shared/home/yec361/project-yec361/cuda/nsys_report.nsys-rep
+--- Nsight Compute (first 10 kernel launches only) ---
+==PROF== Connected to process 2018966 (/shared/home/yec361/project-yec361/cuda/build/main)
+==PROF== Profiling "bit_reverse_kernel" - 0 (1/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 1 (2/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 2 (3/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 3 (4/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 4 (5/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 5 (6/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 6 (7/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 7 (8/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 8 (9/10): 0%....50%....100% - 40 passes
+==PROF== Profiling "butterfly_kernel" - 9 (10/10): 0%....50%....100% - 40 passes
+Using block size: 128
+
+GPU: NVIDIA L4  SMs: 58  Mem: 22574 MiB
+
+Correctness check (n=1024): PASSED
+Correctness check (n=65536): PASSED
+Correctness check (n=1048576): PASSED
+
+block_size,n,time_ms
+128,1024,3.08206
+128,2048,3.11668
+128,4096,3.34045
+128,8192,3.56925
+128,16384,3.82225
+128,32768,4.19525
+128,65536,5.14161
+128,131072,6.25821
+128,262144,7.04483
+128,524288,8.406
+128,1048576,10.6407
+128,2097152,14.9262
+128,4194304,25.6225
+128,8388608,52.3193
+128,16777216,104.153
+128,33554432,225.537
+128,67108864,452.192
+==PROF== Disconnected from process 2018966
+==PROF== Report: /shared/home/yec361/project-yec361/cuda/ncu_report.ncu-rep
+--- Tidying ---
