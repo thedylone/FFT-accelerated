@@ -57,6 +57,18 @@ In practice, we implement the algorithm to be iterative (instead of recursive), 
 
 All implementations use the iterative Cooley-Tukey radix-2 FFT. Input sizes range from $2^{10}$ to $2^{26}$ complex doubles. Correctness is verified by checking that FFT followed by IFFT recovers the original signal within tolerance $10^{-9}$. Timing subtracts the cost of copying the input vector to isolate FFT computation.
 
+**Fair timing.** To ensure a fair comparison across all implementations, each benchmark times the full end-to-end cost of computing an FFT from host memory and returning the result to host memory. The host vector copy cost is subtracted so that only the FFT (and any necessary transfers) are measured. JIT compilation overhead in JAX is excluded via a warm-up call.
+
+| Implementation | What's timed |
+|---|---|
+| Serial | In-place FFT on host vector |
+| OpenMP | In-place FFT on host vector (parallel) |
+| MPI | FFT with scatter/gather internal to `fft()` |
+| CUDA | `cudaMalloc` + H2D + kernel execution + D2H + `cudaFree` |
+| JAX | `jnp.array()` (H2D) + JIT kernels + `numpy.array()` (D2H) |
+
+This ensures GPU implementations pay the same data transfer costs and are not unfairly advantaged by keeping data resident on the device.
+
 ### Serial
 
 The serial implementation serves as the baseline. Bit-reversal reorders the array in $O(n)$, then $\log_2(n)$ butterfly stages each iterate over $n/2$ independent pairs. A single twiddle factor per stage is computed via `cos`/`sin`, then multiplied incrementally.
@@ -202,13 +214,26 @@ Nsight Compute profiled the first 10 kernel launches (1x `bit_reverse_kernel` + 
 - Each butterfly kernel performs a `sincos` per thread plus a complex multiply and two adds: the arithmetic intensity is low relative to global memory traffic
 - The kernel is memory-bound at large $n$: each butterfly reads and writes two complex doubles (32 bytes) with only a handful of FLOPs
 
-### JAX (GPU)
+### JAX
 
 #### Speedup vs Serial
 
 ![JAX speedup vs serial](plots/jax_speedup.svg)
 
-JAX on GPU achieves comparable performance to hand-written CUDA: up to ~18x speedup at large $n$. This is notable given the implementation is ~40 lines of Python with no explicit kernel code. JAX's XLA compiler fuses the array operations and manages GPU memory automatically. The slightly better performance compared to CUDA at large $n$ may be due to XLA's fusion optimisations reducing memory traffic between stages.
+**JAX GPU** is roughly ~2x slower than the hand-written CUDA at large $n$, despite XLA's kernel fusion and twiddle precomputation advantages. Both benchmarks are timed fairly: each iteration includes host-to-device transfer, computation, and device-to-host transfer (see Methods). The performance gap comes from two competing effects:
+
+- **Favouring JAX**: XLA can fuse the reshape, multiply, add/subtract, and concatenate within each butterfly stage into fewer global memory round-trips, whereas CUDA does a full read+write per kernel launch. JAX also precomputes twiddle factors as a vector per stage, while CUDA computes `sincos` per thread.
+- **Favouring CUDA**: Data transfers go through the Python runtime (`jnp.array()` involves Python → NumPy → JAX dispatch → CUDA transfer), adding overhead that CUDA's direct `cudaMemcpy` C API call avoids. XLA also generates general-purpose kernels, whereas hand-written CUDA kernels can be tuned for the specific access pattern.
+
+The net result is that Python transfer overhead outweighs XLA's compute optimisations. For applications where data remains on-GPU across multiple operations, JAX's overhead would be amortised and its fusion advantages would dominate.
+
+**JAX CPU** is ~9x slower than the serial C++ implementation at large $n$. This is despite running the same algorithm and being JIT-compiled by XLA. Three factors explain the gap:
+
+1. **XLA's CPU codegen vs GCC.** The serial C++ compiles with `-march=native -ffast-math -O3`, producing auto-vectorised SIMD butterfly loops. XLA's CPU backend generates more general-purpose code that does not match GCC's architecture-specific optimisations.
+2. **Array immutability.** JAX arrays are immutable: each butterfly stage creates new arrays via `jnp.concatenate([top + t, top - t])`, allocating and copying $O(n)$ data per stage. The C++ version modifies the array in-place with zero allocation overhead.
+3. **Python dispatch per stage.** The FFT has $\log_2(n)$ stages, each involving multiple JAX operations (reshape, slice, multiply, concatenate). Even with JIT, XLA compiles these as separate fused kernels with Python-level orchestration between them.
+
+The JAX CPU result demonstrates that XLA's strength is GPU targeting. Its CPU backend cannot compete with hand-tuned C++ for this workload. This highlights a productivity-vs-performance trade-off: JAX offers ~40 lines of code vs ~50 lines of serial C++ (or ~110 lines of CUDA), at the cost of 9x slower CPU performance or 2x slower GPU performance.
 
 ### Combined Comparison
 
