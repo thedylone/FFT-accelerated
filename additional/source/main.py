@@ -1,3 +1,4 @@
+import sys
 import time
 
 import jax
@@ -20,7 +21,7 @@ def correctness_check(n: int) -> bool:
 
 
 def main():
-    backend = jax.default_backend()
+    backend = sys.argv[1] if len(sys.argv) > 1 else jax.default_backend()
     print(f"Using JAX backend: {backend}\n")
 
     # check for correctness
@@ -29,11 +30,14 @@ def main():
         print(f"Correctness check (n={n}): {'PASSED' if ok else 'FAILED'}")
     print()
 
-    # jit compile the fft
-    fft_jit = jax.jit(fft, static_argnames=("direction",))
+    device = jax.devices(backend)[0]
+    is_gpu = backend != "cpu"
+
+    # jit compile the fft to the chosen device
+    fft_jit = jax.jit(fft, static_argnames=("direction",), device=device)
 
     # benchmark performance
-    print("n,time_ms")
+    print(f"backend,n,time_ms")
 
     import numpy as np_cpu
 
@@ -43,15 +47,19 @@ def main():
         rng = np_cpu.random.default_rng(123)
         a_host = rng.standard_normal(n) + 0j  # host numpy array
 
-        # warm-up (triggers JIT compilation, includes transfer)
-        a_dev = jnp.array(a_host)
+        # warm-up (triggers JIT compilation)
+        a_dev = jax.device_put(a_host, device)
         tmp = fft_jit(a_dev, direction=1)
-        np_cpu.array(tmp.block_until_ready())
+        tmp.block_until_ready()
+        if is_gpu:
+            np_cpu.array(tmp)
 
         t0 = time.perf_counter()
-        a_dev = jnp.array(a_host)
+        a_dev = jax.device_put(a_host, device)
         tmp = fft_jit(a_dev, direction=1)
-        np_cpu.array(tmp.block_until_ready())
+        tmp.block_until_ready()
+        if is_gpu:
+            np_cpu.array(tmp)
         t1 = time.perf_counter()
         ms = (t1 - t0) * 1e3
 
@@ -64,17 +72,19 @@ def main():
         t1 = time.perf_counter()
         copy_ms = (t1 - t0) * 1e3 / reps
 
-        # time copy + H2D + fft + D2H
+        # time copy + transfer + fft (+ D2H for GPU)
         t0 = time.perf_counter()
         for _ in range(reps):
             a_copy = a_host.copy()
-            a_dev = jnp.array(a_copy)
+            a_dev = jax.device_put(a_copy, device)
             result = fft_jit(a_dev, direction=1)
-            np_cpu.array(result.block_until_ready())
+            result.block_until_ready()
+            if is_gpu:
+                np_cpu.array(result)
         t1 = time.perf_counter()
         ms = (t1 - t0) * 1e3 / reps
 
-        print(f"{n},{ms - copy_ms:.4f}")
+        print(f"{backend},{n},{ms - copy_ms:.4f}")
 
 
 if __name__ == "__main__":
