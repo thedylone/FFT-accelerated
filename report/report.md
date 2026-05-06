@@ -53,31 +53,60 @@ Pictorally, this is illustrated below:
 
 In practice, we implement the algorithm to be iterative (instead of recursive), and apply the modifications in-place. Bit-reversal permutation reorders the input so that the iterative butterfly stages can be applied in-place without extra bookkeeping. Butterfly stages are $\log_2(n)$ passes over the array. In each pass, pairs of elements are combined using a twiddle factor (a root of unity). Each level corresponds to a halved sub-problem in the recursive view.
 
-## Methods
+# Table of Contents
+
+1. [Introduction](#high-performance-computing-for-the-fft-algorithm)
+2. [Table of Contents](#table-of-contents)
+3. [Methods](#methods)
+4. [Results](#results)
+   - [Runtime Overview](#runtime-overview)
+   - [OpenMP](#openmp)
+     - [Speedup vs Serial](#speedup-vs-serial)
+     - [Strong Scaling](#strong-scaling)
+     - [Weak Scaling](#weak-scaling)
+     - [VTune: OpenMP Hotspots](#vtune-openmp-hotspots)
+     - [VTune: OpenMP Threading](#vtune-openmp-threading)
+     - [Barrier Model vs VTune](#barrier-model-vs-vtune)
+   - [MPI](#mpi)
+     - [Speedup vs Serial](#speedup-vs-serial-1)
+     - [Strong Scaling](#strong-scaling-1)
+     - [Weak Scaling](#weak-scaling-1)
+   - [CUDA](#cuda)
+     - [Speedup vs Serial](#speedup-vs-serial-2)
+     - [Nsight Systems: CUDA Timeline](#nsight-systems-cuda-timeline)
+     - [Nsight Compute: CUDA Kernel Metrics](#nsight-compute-cuda-kernel-metrics)
+   - [JAX](#jax)
+     - [Speedup vs Serial](#speedup-vs-serial-3)
+   - [Combined Comparison](#combined-comparison)
+     - [Best Runtime](#best-runtime)
+     - [Speedup over Serial](#speedup-over-serial)
+5. [Conclusion](#conclusion)
+
+# Methods
 
 All implementations use the iterative Cooley-Tukey radix-2 FFT. Input sizes range from $2^{10}$ to $2^{26}$ complex doubles. Correctness is verified by checking that FFT followed by IFFT recovers the original signal within tolerance $10^{-9}$. Timing subtracts the cost of copying the input vector to isolate FFT computation.
 
 **Fair timing.** To ensure a fair comparison across all implementations, each benchmark times the full end-to-end cost of computing an FFT from host memory and returning the result to host memory. The host vector copy cost is subtracted so that only the FFT (and any necessary transfers) are measured. JIT compilation overhead in JAX is excluded via a warm-up call.
 
-| Implementation | What's timed |
-|---|---|
-| Serial | In-place FFT on host vector |
-| OpenMP | In-place FFT on host vector (parallel) |
-| MPI | FFT with scatter/gather internal to `fft()` |
-| CUDA | `cudaMalloc` + H2D + kernel execution + D2H + `cudaFree` |
-| JAX | `jnp.array()` (H2D) + JIT kernels + `numpy.array()` (D2H) |
+| Implementation | What's timed                                              |
+| -------------- | --------------------------------------------------------- |
+| Serial         | In-place FFT on host vector                               |
+| OpenMP         | In-place FFT on host vector (parallel)                    |
+| MPI            | FFT with scatter/gather internal to `fft()`               |
+| CUDA           | `cudaMalloc` + H2D + kernel execution + D2H + `cudaFree`  |
+| JAX            | `jnp.array()` (H2D) + JIT kernels + `numpy.array()` (D2H) |
 
 This ensures GPU implementations pay the same data transfer costs and are not unfairly advantaged by keeping data resident on the device.
 
-### Serial
+## Serial
 
 The serial implementation serves as the baseline. Bit-reversal reorders the array in $O(n)$, then $\log_2(n)$ butterfly stages each iterate over $n/2$ independent pairs. A single twiddle factor per stage is computed via `cos`/`sin`, then multiplied incrementally.
 
-### OpenMP
+## OpenMP
 
 The OpenMP version parallelises the data-parallel operations. The bit-reversal indices are precomputed into a lookup table, then swaps are done in parallel with `#pragma omp parallel for schedule(static)`. Each butterfly stage's outer loop (over independent blocks of size `len`) is parallelised the same way. Thread counts of 1, 2, 4, 8, 16, and 32 are tested.
 
-### MPI
+## MPI
 
 The MPI version uses a binary-exchange distributed FFT. Rank 0 owns the full input; the function signature `void fft(Vec& a, int direction)` is unchanged from the serial version. Internally:
 
@@ -88,25 +117,36 @@ The MPI version uses a binary-exchange distributed FFT. Rank 0 owns the full inp
 
 Each rank stores only $2 \times n/p$ complex elements (local buffer + receive buffer). Process counts of 1, 2, 4, 8, 16, and 32 are tested on a single node.
 
-### CUDA
+## CUDA
 
 The GPU version launches two kernels per FFT call. A `bit_reverse_kernel` where each thread computes its own reversed index and swaps in parallel. Then $\log_2(n)$ launches of `butterfly_kernel`, where each of the $n/2$ threads handles one butterfly pair, computing the twiddle factor via `sincos`. Block sizes of 32, 64, 128, 256, 512, and 1024 are tested on an NVIDIA L4 GPU (58 SMs, 22 GB).
 
-### JAX (Additional)
+## JAX (Additional)
 
 The JAX implementation uses the same Cooley-Tukey algorithm expressed as array operations. Bit-reversal is computed via bitwise ops on index arrays. Each butterfly stage reshapes the array into blocks, computes twiddle factors as a vector, and applies the butterfly via broadcasting (no explicit loops over elements). `@jax.jit` compiles the function to XLA for GPU execution. This runs on the same NVIDIA L4 GPU as the CUDA version.
 
-## Results
+# Results
 
-### Runtime Overview
+## Runtime Overview
 
 ![Runtime overview](plots/overview.svg)
 
 All implementations follow the expected $O(n \log n)$ scaling. The serial baseline reaches ~4.3 seconds at $n = 2^{26}$. GPU implementations (CUDA and JAX) are significantly faster at large $n$, while OpenMP and MPI provide moderate speedups on the CPU.
 
-### OpenMP
+## OpenMP
 
-#### Strong Scaling
+### Speedup vs Serial
+
+![OMP speedup vs serial](plots/omp_speedup.svg)
+
+Speedup improves with $n$ as parallel work per thread increases, but peaks at $n = 2^{21}$ and then **declines** for larger sizes. This is a cache hierarchy effect. The cluster node has 36 MB of L3 cache and 12 L2 caches of 1 MB each:
+
+- At $n = 2^{21}$ (32 MB of complex doubles), the entire working set fits in L3, and each thread's portion (~1 MB) fits in an L2. This is the sweet spot where threads benefit maximally from aggregate cache capacity.
+- At $n = 2^{22}$ (64 MB), data spills out of L3. The butterfly's strided access pattern causes cache misses, and all 32 threads compete for memory bandwidth simultaneously.
+
+At small $n$, thread creation overhead dominates and speedup is below 1x.
+
+### Strong Scaling
 
 ![OMP strong scaling](plots/omp_strong.svg)
 
@@ -116,9 +156,17 @@ A model that accounts for this directly: with $p$ threads, each stage divides $n
 
 $$T_p = \log_2(n) \cdot \left(\frac{n \cdot c}{2p} + t_{\text{barrier}}\right), \quad S(p) = \frac{p}{1 + 2(p-1)\alpha}$$
 
-where $\alpha = t_{\text{barrier}} / (n \cdot c)$ is the barrier-to-work ratio. Fitting to the 32-thread data gives $\alpha \approx 0.095$. Note that for fixed $n$, this is equivalent to Amdahl's law with $s = 2\alpha \approx 0.19$ (ceiling $1/s \approx 5.3\times$), but the barrier model gives $\alpha$ a physical meaning rather than an abstract serial fraction. The distinction matters for weak scaling, where the models diverge. The measured speedups at 4–8 threads slightly exceed the prediction, likely due to increased aggregate cache capacity improving the memory-bound butterfly stages. This is explained further by the profiling analysis below.
+$$ S(p) = \frac{1}{1/p + 2\alpha - 2\alpha/p} = \frac{1}{s + (1-s)/p} \quad \text{(Amdahl's Law)}$$
 
-#### Weak Scaling
+where $\alpha = t_{\text{barrier}} / (n \cdot c)$ is the barrier-to-work ratio. Fitting to the 32-thread data gives $\alpha \approx 0.095$. Note that for fixed $n$, this is equivalent to Amdahl's law with the serial fraction $s = 2\alpha \approx 0.19$ (ceiling $1/s \approx 5.3\times$), but the barrier model gives $\alpha$ a physical meaning rather than an abstract serial fraction. The distinction matters for weak scaling, where the models diverge. The measured speedups at 4–8 threads slightly exceed the prediction, likely due to increased aggregate cache capacity improving the memory-bound butterfly stages. This is explained further by the profiling analysis below.
+
+![OMP strong scaling](plots/omp_strong_multiscale.svg)
+
+Here we plot the strong scaling data for all sizes $n$.
+
+- The strong scaling plateau at 8–16 threads is also consistent: there are only 12 physical L2 caches, so beyond ~12 threads the additional threads contend for L2 without adding cache capacity.
+
+### Weak Scaling
 
 ![OMP weak scaling](plots/omp_weak.svg)
 
@@ -128,33 +176,25 @@ Weak scaling efficiency drops sharply to ~7% at 32 threads (work per thread $= 2
 
 2. **Barrier overhead**: The remaining gap (from 0.81 to the measured 0.07) is dominated by synchronisation. The full model $E(p) = L / [(L + \log_2 p)(1 + 2(p-1)\alpha)]$ captures both effects.
 
-#### Speedup vs Serial
+![OMP weak scaling](plots/omp_weak_multiscale.svg)
 
-![OMP speedup vs serial](plots/omp_speedup.svg)
+This plot shows the weak scaling data for all sizes $n$. The efficiency drop is consistent across sizes, confirming that the bottleneck is not just a cache effect at large $n$ but an inherent synchronisation cost in the algorithm.
 
-Speedup improves with $n$ as parallel work per thread increases, but peaks at $n = 2^{21}$ and then **declines** for larger sizes. This is a cache hierarchy effect. The cluster node has 36 MB of L3 cache and 12 L2 caches of 1 MB each:
-
-- At $n = 2^{21}$ (32 MB of complex doubles), the entire working set fits in L3, and each thread's portion (~1 MB) fits in an L2. This is the sweet spot where threads benefit maximally from aggregate cache capacity.
-- At $n = 2^{22}$ (64 MB), data spills out of L3. The butterfly's strided access pattern causes cache misses, and all 32 threads compete for memory bandwidth simultaneously.
-- The strong scaling plateau at 8–16 threads is also consistent: there are only 12 physical L2 caches, so beyond ~12 threads the additional threads contend for L2 without adding cache capacity.
-
-At small $n$, thread creation overhead dominates and speedup is below 1x.
-
-#### VTune: OpenMP Hotspots
+### VTune: OpenMP Hotspots
 
 VTune hotspot analysis on the OpenMP implementation (32 threads, all benchmark sizes) reveals:
 
-| Function | CPU Time | % |
-|---|---|---|
-| `fft._omp_fn.0` (butterfly computation) | 180.7s | 31.9% |
-| `gomp_team_barrier_wait_end` | 171.8s | 30.3% |
-| `gomp_simple_barrier_wait` | 136.7s | 24.1% |
-| `bit_reverse._omp_fn.0` | 42.5s | 7.5% |
-| `memcpy` (vector copies) | 14.2s | 2.5% |
+| Function                                | CPU Time | %     |
+| --------------------------------------- | -------- | ----- |
+| `fft._omp_fn.0` (butterfly computation) | 180.7s   | 31.9% |
+| `gomp_team_barrier_wait_end`            | 171.8s   | 30.3% |
+| `gomp_simple_barrier_wait`              | 136.7s   | 24.1% |
+| `bit_reverse._omp_fn.0`                 | 42.5s    | 7.5%  |
+| `memcpy` (vector copies)                | 14.2s    | 2.5%  |
 
 **Only 31.9% of CPU time is actual FFT computation.** Over 54% is spent in OpenMP barrier synchronisation. This occurs because each of the $\log_2(n)$ butterfly stages uses `#pragma omp parallel for`, which creates an implicit barrier at the end. For $n = 2^{26}$, that is 26 barriers per FFT call. Threads that finish their chunk early spin-wait for slower threads.
 
-#### VTune: OpenMP Threading
+### VTune: OpenMP Threading
 
 The threading analysis confirms:
 
@@ -164,41 +204,53 @@ The threading analysis confirms:
 
 The FFT's structure inherently limits shared-memory parallelism: stages are sequential (stage $s+1$ depends on stage $s$), so threads must synchronise between every stage. At early stages (small `len`), the parallel work per thread is minimal, amplifying the barrier cost.
 
-#### Barrier Model vs VTune
+### Barrier Model vs VTune
 
 The VTune profiling data corroborates the barrier model. The model predicts a parallel efficiency of $S(p)/p = 4.65/32 = 14.5\%$ at 32 threads, meaning 85.5% of per-thread time is spent in synchronisation. VTune's threading analysis independently reports an effective logical CPU utilisation of **12.4%** which is in close agreement, with the small gap attributable to non-FFT overhead in the benchmark harness (random number generation, vector copies, etc.).
 
 Both also agree on the source of the bottleneck. The barrier model attributes all overhead to the $\log_2(n)$ per-stage barriers, while VTune directly measures 54% of aggregate CPU time in barrier spin-wait functions (`gomp_team_barrier_wait_end` + `gomp_simple_barrier_wait`). The difference between 85% (model, per-stage wall time fraction) and 54% (VTune, aggregate CPU time fraction) is because VTune sums across all threads: a thread spinning at a barrier still consumes CPU time, but VTune also counts concurrent compute time on other threads, diluting the barrier fraction in the aggregate.
 
-### MPI
+## MPI
 
-#### Strong Scaling
-
-![MPI strong scaling](plots/mpi_strong.svg)
-
-MPI achieves ~2.2x speedup at 32 processes for $n = 2^{26}$. Applying the barrier model gives $\alpha \approx 0.22$ (equivalently $s = 2\alpha \approx 0.44$, ceiling $\approx 2.3\times$), over twice the OpenMP value ($\alpha \approx 0.095$). The higher $\alpha$ reflects the additional communication cost: each distributed stage requires an `MPI_Sendrecv` to exchange local buffers with a partner rank, on top of the `MPI_Scatter` and `MPI_Gather` at the start and end of each FFT call.
-
-#### Weak Scaling
-
-![MPI weak scaling](plots/mpi_weak.svg)
-
-Weak scaling efficiency drops to ~5% at 32 processes, even steeper than OpenMP. The same two-factor decomposition applies: the algorithmic $O(n \log n)$ growth accounts for ~19% loss, while the remaining gap is communication overhead. The fitted $\alpha$ for MPI weak scaling is larger than OpenMP's, consistent with `MPI_Sendrecv` being more expensive than an OpenMP barrier.
-
-#### Speedup vs Serial
+### Speedup vs Serial
 
 ![MPI speedup vs serial](plots/mpi_speedup.svg)
 
 At small $n$, MPI is slower than serial due to communication latency. Speedup peaks around $n = 2^{18}$, notably earlier than OpenMP's peak at $n = 2^{21}$. This is because rank 0 must touch the entire array for `MPI_Scatter` and `MPI_Gather`, an $O(n)$ cost that is not parallelised. As $n$ grows, scatter/gather consumes a larger fraction of total time. Each rank's working set during the distributed stages is also $2 \times n/p$ (local + receive buffer), which at $n = 2^{18}$ with 32 processes is 256 KB, comfortably in L2, but grows and saturates shared memory bandwidth at larger $n$.
 
-### CUDA
+### Strong Scaling
 
-#### Speedup vs Serial
+![MPI strong scaling](plots/mpi_strong.svg)
+
+MPI achieves ~2.2x speedup at 32 processes for $n = 2^{26}$. Applying the barrier model gives $\alpha \approx 0.22$ (equivalently $s = 2\alpha \approx 0.44$, ceiling $\approx 2.3\times$), over twice the OpenMP value ($\alpha \approx 0.095$). The higher $\alpha$ reflects the additional communication cost: each distributed stage requires an `MPI_Sendrecv` to exchange local buffers with a partner rank, on top of the `MPI_Scatter` and `MPI_Gather` at the start and end of each FFT call.
+
+![MPI strong scaling](plots/mpi_strong_multiscale.svg)
+
+Similar to OpenMP, the speedup for small $n$ is less than 1x (i.e. slowdown), and worsens as process count increases. The strong scaling plateau at 8–16 processes is also consistent with the shared-memory bottleneck: all processes on the same node contend for memory bandwidth, and the communication overhead becomes more pronounced as $n$ grows.
+
+### Weak Scaling
+
+![MPI weak scaling](plots/mpi_weak.svg)
+
+Weak scaling efficiency drops to ~5% at 32 processes, even steeper than OpenMP. The same two-factor decomposition applies: the algorithmic $O(n \log n)$ growth accounts for ~19% loss, while the remaining gap is communication overhead. The fitted $\alpha$ for MPI weak scaling is larger than OpenMP's, consistent with `MPI_Sendrecv` being more expensive than an OpenMP barrier.
+
+![MPI weak scaling](plots/mpi_weak_multiscale.svg)
+
+Compared to OpenMP, the weak scaling efficiency curves are more consistent across work sizes, suggesting that the communication overhead is less sensitive to cache effects than OpenMP's synchronisation bottleneck. However, the efficiency is still very low at 32 processes, confirming that MPI's communication cost dominates at large process counts on a single node.
+
+## CUDA
+
+### Speedup vs Serial
 
 ![CUDA speedup vs serial](plots/cuda_speedup.svg)
 
 CUDA achieves up to ~10x speedup over serial at large $n$. Block size has minimal impact on performance: all configurations produce nearly identical results, suggesting the bottleneck is memory bandwidth rather than occupancy tuning. At small $n$ ($< 2^{14}$), kernel launch overhead and host-device transfer costs make GPU execution slower than serial.
 
-#### Nsight Systems: CUDA Timeline
+![CUDA speedup vs serial](plots/cuda_strong_multiscale.svg)
+
+This speedup plot visibly demonstrates that changing block size has negligible effect on performance across all sizes $n$. Instead, the size of the input $n$ is the dominant factor, with GPU speedup increasing with $n$ as the computation becomes more efficient relative to overhead.
+
+### Nsight Systems: CUDA Timeline
 
 The Nsight Systems profile captured the CUDA execution on an NVIDIA L4 GPU:
 
@@ -206,7 +258,7 @@ The Nsight Systems profile captured the CUDA execution on an NVIDIA L4 GPU:
 - At large $n$, kernel execution time dominates over launch overhead
 - Host-device memory transfers (`cudaMemcpy`) appear at the start and end of each `fft()` call
 
-#### Nsight Compute: CUDA Kernel Metrics
+### Nsight Compute: CUDA Kernel Metrics
 
 Nsight Compute profiled the first 10 kernel launches (1x `bit_reverse_kernel` + 9x `butterfly_kernel` for $n = 1024$):
 
@@ -214,9 +266,9 @@ Nsight Compute profiled the first 10 kernel launches (1x `bit_reverse_kernel` + 
 - Each butterfly kernel performs a `sincos` per thread plus a complex multiply and two adds: the arithmetic intensity is low relative to global memory traffic
 - The kernel is memory-bound at large $n$: each butterfly reads and writes two complex doubles (32 bytes) with only a handful of FLOPs
 
-### JAX
+## JAX
 
-#### Speedup vs Serial
+### Speedup vs Serial
 
 ![JAX speedup vs serial](plots/jax_speedup.svg)
 
@@ -235,27 +287,26 @@ The net result is that Python transfer overhead outweighs XLA's compute optimisa
 
 The JAX CPU result demonstrates that XLA's strength is GPU targeting. Its CPU backend cannot compete with hand-tuned C++ for this workload. This highlights a productivity-vs-performance trade-off: JAX offers ~40 lines of code vs ~50 lines of serial C++ (or ~110 lines of CUDA), at the cost of 9x slower CPU performance or 2x slower GPU performance.
 
-### Combined Comparison
+## Combined Comparison
 
-#### Best Runtime
+### Best Runtime
 
 ![Best runtime comparison](plots/best_runtime.svg)
 
-#### Speedup over Serial
+### Speedup over Serial
 
 ![Speedup over serial](plots/best_speedup.svg)
 
 At $n = 2^{26}$, the best speedups over serial are:
 
-| Implementation | Speedup |
-|---|---|
-| CUDA (best block size) | ~10x |
-| JAX (GPU) | ~18x |
-| OpenMP (32 threads) | ~4.6x |
-| MPI (32 processes) | ~2.2x |
+| Implementation         | Speedup |
+| ---------------------- | ------- |
+| CUDA (best block size) | ~10x    |
+| JAX (GPU)              | ~18x    |
+| OpenMP (32 threads)    | ~4.6x   |
+| MPI (32 processes)     | ~2.2x   |
 
-
-## Conclusion
+# Conclusion
 
 FFT parallelisation is fundamentally constrained by the $\log_2(n)$ sequential stages. Each stage is embarrassingly parallel within itself, but the stages must execute in order:
 

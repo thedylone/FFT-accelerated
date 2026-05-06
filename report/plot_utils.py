@@ -104,7 +104,10 @@ def compute_multiscale_efficiency_series(
     groups_all = np.array(sorted(df[group_col].unique()))
     max_group = int(groups_all.max())
     n_values = sorted(df[n_col].unique())
-    norm = plt.Normalize(vmin=np.log2(n_values[0]), vmax=np.log2(n_values[-1]))
+    norm = plt.Normalize(
+        vmin=np.log2(n_values[0]),
+        vmax=np.log2(n_values[-1] / max_group),
+    )
     cmap = cmap or plt.cm.viridis
     series = []
     for n_val in n_values:
@@ -125,7 +128,7 @@ def compute_multiscale_efficiency_series(
             eff.append(baseline / rows[time_col].values[0])
         if len(valid_groups) < 2:
             continue
-        color = cmap(norm(np.log2(n_val)))
+        color = cmap(norm(np.log2(n_per_group)))
         series.append((np.array(valid_groups), np.array(eff), color))
     return series, groups_all, max_group, norm, cmap
 
