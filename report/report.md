@@ -129,7 +129,6 @@ The JAX implementation uses the same Cooley-Tukey algorithm expressed as array o
 
 ## Runtime Overview
 
-<!-- ![Runtime overview](plots/overview.svg) -->
 ![Runtime overview](plots/overview_animation.gif)
 
 All implementations follow the expected $O(n \log n)$ scaling. The serial baseline reaches ~4.3 seconds at $n = 2^{26}$. GPU implementations (CUDA and JAX) are significantly faster at large $n$, while OpenMP and MPI provide moderate speedups on the CPU.
