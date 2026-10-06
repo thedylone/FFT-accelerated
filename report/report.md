@@ -302,9 +302,9 @@ At $n = 2^{26}$, the best speedups over serial are:
 | Implementation         | Speedup |
 | ---------------------- | ------- |
 | CUDA (best block size) | ~10x    |
-| JAX (GPU)              | ~18x    |
-| OpenMP (32 threads)    | ~4.6x   |
-| MPI (32 processes)     | ~2.2x   |
+| JAX (GPU)              | ~4.6x   |
+| OpenMP (32 threads)    | ~3.3x   |
+| MPI (32 processes)     | ~1.9x   |
 
 # Conclusion
 
