@@ -9,8 +9,8 @@
   var css = getComputedStyle(document.documentElement);
   function v(name) { return css.getPropertyValue(name).trim(); }
   var COL = {
-    omp: v("--c-omp"), mpi: v("--c-mpi"), cuda: v("--c-cuda"),
-    jaxcpu: v("--c-jaxcpu"), jaxgpu: v("--c-jaxgpu"), serial: v("--c-serial")
+    omp: v("--series-1"), mpi: v("--series-2"), cuda: v("--series-3"),
+    jaxcpu: v("--series-4"), jaxgpu: v("--series-5"), serial: v("--color-text")
   };
 
   // ---------- data helpers ----------
@@ -136,7 +136,7 @@
         var b = document.createElement("button");
         b.type = "button";
         b.setAttribute("aria-pressed", "true");
-        b.innerHTML = '<span class="sw' + (s.dashed ? " dashed" : "") + '" style="background:' + s.color + '"></span>' + s.name;
+        b.innerHTML = '<span class="lsw' + (s.dashed ? " dashed" : "") + '" style="background:' + s.color + '"></span>' + s.name;
         b.addEventListener("click", function () {
           hidden[s.id] = !hidden[s.id];
           b.setAttribute("aria-pressed", hidden[s.id] ? "false" : "true");
@@ -405,10 +405,10 @@
   // ---------- VTune bars (horizontal, static data from openmp/vtune_hotspots_summary.txt) ----------
   var VT = [
     { name: "Butterfly compute", fn: "fft._omp_fn.0", s: 180.740, p: 31.9, c: COL.omp },
-    { name: "Team barrier wait", fn: "gomp_team_barrier_wait_end", s: 171.802, p: 30.3, c: v("--ink-3") },
-    { name: "Simple barrier wait", fn: "gomp_simple_barrier_wait", s: 136.730, p: 24.1, c: v("--ink-3") },
+    { name: "Team barrier wait", fn: "gomp_team_barrier_wait_end", s: 171.802, p: 30.3, c: v("--color-text-faint") },
+    { name: "Simple barrier wait", fn: "gomp_simple_barrier_wait", s: 136.730, p: 24.1, c: v("--color-text-faint") },
     { name: "Bit reversal", fn: "bit_reverse._omp_fn.0", s: 42.546, p: 7.5, c: COL.omp },
-    { name: "memcpy", fn: "__memcpy_evex_unaligned_erms", s: 14.230, p: 2.5, c: v("--ink-3") }
+    { name: "memcpy", fn: "__memcpy_evex_unaligned_erms", s: 14.230, p: 2.5, c: v("--color-text-faint") }
   ];
   var vtHost = document.getElementById("chart-vtune");
   var vtTip = tooltip(vtHost);
@@ -443,11 +443,11 @@
     var p26 = s.pts.find(function (p) { return p.n === N26; });
     var pk = peak(s);
     var tr = document.createElement("tr");
-    tr.innerHTML = '<td><span class="swatch" style="display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:.45rem;background:' + s.color + '"></span>' + s.name + "</td>" +
+    tr.innerHTML = '<td><span class="sw" style="background:' + s.color + '"></span>' + s.name + "</td>" +
       "<td>" + (s.cfg ? p26.k + " " + s.cfg : "n/a") + "</td>" +
-      '<td class="r">' + fmtMs(p26.t) + "</td>" +
-      '<td class="r">' + fmtX(p26.s) + "×</td>" +
-      '<td class="r">' + (s.id === "serial" ? "n/a" : fmtX(pk.s) + "× at " + supN(pk.n)) + "</td>";
+      '<td class="num">' + fmtMs(p26.t) + "</td>" +
+      '<td class="num">' + fmtX(p26.s) + "×</td>" +
+      '<td class="num">' + (s.id === "serial" ? "n/a" : fmtX(pk.s) + "× at " + supN(pk.n)) + "</td>";
     tb.appendChild(tr);
   });
 
@@ -457,11 +457,18 @@
   sortedKeys(G.mpi).forEach(function (k) { cols.push({ h: "MPI " + k, m: G.mpi[k] }); });
   sortedKeys(G.cuda).forEach(function (k) { cols.push({ h: "CUDA " + k, m: G.cuda[k] }); });
   cols.push({ h: "JAX CPU", m: JAX.cpu }, { h: "JAX GPU", m: JAX.gpu });
-  var html = "<thead><tr><th>n</th>" + cols.map(function (c) { return '<th class="r">' + c.h + "</th>"; }).join("") + "</tr></thead><tbody>";
+  var html = "<thead><tr><th>n</th>" + cols.map(function (c) { return '<th class="num">' + c.h + "</th>"; }).join("") + "</tr></thead><tbody>";
   NS_LIST.forEach(function (n) {
-    html += "<tr><td>" + supN(n) + "</td>" + cols.map(function (c) { return '<td class="r">' + fmtMs(c.m[n]) + "</td>"; }).join("") + "</tr>";
+    html += "<tr><td>" + supN(n) + "</td>" + cols.map(function (c) { return '<td class="num">' + fmtMs(c.m[n]) + "</td>"; }).join("") + "</tr>";
   });
-  raw.innerHTML = html + '</tbody><caption style="caption-side:bottom;text-align:left;padding-top:.5rem;color:var(--ink-3);font-size:.8rem">Milliseconds per FFT. Source: */results.csv in the repository.</caption>';
+  raw.innerHTML = html + '</tbody><caption style="caption-side:bottom;text-align:left;padding-top:.5rem;color:var(--color-text-faint);font-size:.8rem">Milliseconds per FFT. Source: */results.csv in the repository.</caption>';
+
+  // ---------- equations ----------
+  if (window.katex) {
+    document.querySelectorAll(".pk-math[data-tex]").forEach(function (m) {
+      try { window.katex.render(m.getAttribute("data-tex"), m, { displayMode: true, throwOnError: false }); } catch (e) {}
+    });
+  }
 
   // ---------- resize ----------
   var rt;

@@ -1,0 +1,74 @@
+/* Page-specific styles for FFT Accelerated. Loaded after project-kit.css.
+   Does not restyle .pk-header, .pk-footer, .pk-hero or the type scale. */
+
+.fft-stats { margin-top: 2.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+.fft-stats .pk-stat-value small { font-size: 0.6em; color: var(--color-gold); }
+.fft-stats .what { margin-top: 0.35rem; font-weight: 500; }
+.fft-stats .ctx { margin-top: 0.2rem; font-size: 0.85rem; line-height: 1.45; color: var(--color-text-muted); }
+.sw { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.4rem; vertical-align: 0.02em; flex: none; }
+
+.fft-note { margin-top: 1.5rem; font-size: 0.9rem; }
+
+.backend .pk-h3 { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.5rem; }
+.backend p, .backend ul { margin-top: 0.75rem; font-size: 0.95rem; color: var(--color-text-muted); }
+.backend .src { margin-top: 1rem; font-family: var(--font-mono); font-size: 0.75rem; }
+
+/* Figures */
+.fft-figure .pk-frame { padding: clamp(0.9rem, 2.5vw, 1.4rem); min-width: 0; }
+.fft-figure figcaption { max-width: var(--prose-width); }
+.fig-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.fig-head .pk-h3 { margin-top: 0.3rem; }
+.fig-sub { font-size: 0.88rem; color: var(--color-text-muted); margin-top: 0.25rem; }
+.controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; font-family: var(--font-mono); font-size: 0.74rem; color: var(--color-text-muted); }
+.controls select { font-family: var(--font-mono); font-size: 0.74rem; border: 1px solid var(--color-hairline-strong); border-radius: var(--radius-control); padding: 0.3rem 0.5rem; background: #fff; color: var(--color-text); }
+
+.chart { position: relative; margin-top: 1rem; width: 100%; }
+.chart svg { width: 100%; height: auto; overflow: visible; }
+.chart .grid line { stroke: var(--color-hairline); }
+.chart .axis text, .chart .ticklabel, .chart .barlabel { font-family: var(--font-mono); font-size: 11px; fill: var(--color-text-muted); }
+.chart .ticklabel { paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+.chart .axis-title { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--color-text-faint); }
+.chart .baseline { stroke: var(--color-hairline-strong); }
+.chart .ref { stroke: var(--color-text-faint); stroke-dasharray: 4 4; stroke-width: 1.25; fill: none; }
+.chart .series path { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .series circle { stroke: #fff; stroke-width: 2; }
+.chart .crosshair { stroke: var(--color-hairline-strong); }
+.chart .dlabel { font-family: var(--font-sans); font-size: 12px; font-weight: 500; fill: var(--color-text); }
+.chart .bar.hl { opacity: 0.75; }
+
+.tooltip {
+  position: absolute; pointer-events: none; z-index: 5;
+  background: #fff; border: 1px solid var(--color-card-border); border-radius: var(--radius-control);
+  box-shadow: 0 8px 24px -10px rgba(15, 23, 42, 0.25);
+  padding: 0.5rem 0.7rem; font-size: 0.8rem; line-height: 1.4; min-width: 10rem;
+  opacity: 0; transition: opacity 0.1s; white-space: nowrap;
+}
+.tooltip.on { opacity: 1; }
+.tooltip .tt-head { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-faint); margin-bottom: 0.3rem; }
+.tooltip .tt-row { display: flex; align-items: center; gap: 0.45rem; }
+.tooltip .tt-row .sw { margin: 0; }
+.tooltip .tt-row b { margin-left: auto; padding-left: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tooltip .muted { color: var(--color-text-faint); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 0.5rem; margin-top: 0.9rem; }
+.legend button {
+  display: inline-flex; align-items: center; gap: 0.45rem; font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-text-muted);
+  border: 1px solid var(--color-hairline-strong); background: transparent; border-radius: 999px; padding: 0.2rem 0.65rem; cursor: pointer;
+}
+.legend button .lsw { width: 0.85rem; height: 0.2rem; border-radius: 2px; }
+.legend button .lsw.dashed { background: repeating-linear-gradient(90deg, var(--color-text) 0 4px, transparent 4px 7px) !important; }
+.legend button[aria-pressed="false"] { opacity: 0.45; }
+.legend button[aria-pressed="false"] .lsw { background: var(--color-text-faint) !important; }
+
+.fft-table { margin-top: 1rem; }
+.fft-table td:first-child { white-space: nowrap; }
+details.data { margin-top: 1rem; font-size: 0.85rem; }
+details.data summary { cursor: pointer; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-faint); }
+details.data .pk-table-wrap { margin-top: 0.6rem; max-height: 22rem; overflow: auto; }
+
+.fft-list { list-style: none; padding: 0; }
+.fft-list li { position: relative; padding-left: 1.1rem; }
+.fft-list li + li { margin-top: 0.7rem; }
+.fft-list li::before { content: ""; position: absolute; left: 0; top: 0.8em; width: 0.45rem; height: 1px; background: var(--color-gold); }
+
+.pk-math { font-size: 1.05rem; }
