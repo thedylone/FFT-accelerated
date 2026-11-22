@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./project-kit.css" />
+  <script src="./project-kit.js" defer></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
   <link rel="stylesheet" href="./page.css" />
 </head>
@@ -75,6 +76,18 @@
       </div>
       <p class="pk-callout fft-note">Every benchmark figure on this page is computed in your browser from the <code>results.csv</code> files in the repository. The serial baseline takes <span data-stat="serial-26">4,326</span> ms at n = 2<sup>26</sup>.</p>
     </section>
+
+    <nav class="pk-subnav" aria-label="On this page">
+      <div class="pk-subnav-inner">
+        <ul>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#method">Method</a></li>
+          <li><a href="#results">Results</a></li>
+          <li><a href="#scaling">Scaling and profiling</a></li>
+          <li><a href="#takeaways">Takeaways</a></li>
+        </ul>
+      </div>
+    </nav>
 
     <section id="overview" class="pk-section">
       <div class="pk-container">
