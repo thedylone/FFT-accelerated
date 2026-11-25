@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FFT Accelerated | Dylan Chua</title>
+  <meta name="description" content="A radix-2 Cooley–Tukey FFT parallelised with OpenMP, MPI, custom CUDA kernels and JIT-compiled JAX, with measured speedups and scaling results." />
+  <meta name="theme-color" content="#f9f9f6" />
+  <meta property="og:title" content="FFT Accelerated" />
+  <meta property="og:description" content="Distributed and hardware-accelerated FFT: OpenMP, MPI, CUDA and JAX, benchmarked from 2^10 to 2^26 points." />
+  <meta property="og:image" content="gallery-cover.webp" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💫</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://projects.thedylone.com/style/v1/project-kit.css" />
+  <script src="https://projects.thedylone.com/script/v1/project-kit.js" defer></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
+  <link rel="stylesheet" href="./page.css" />
+</head>
+<body>
+  <header class="pk-header">
+    <div class="pk-header-inner">
+      <a class="pk-brand" href="https://projects.thedylone.com/">Dylan Chua</a>
+      <ul class="pk-nav">
+        <li><a href="https://projects.thedylone.com/">Projects</a></li>
+        <li><a href="https://github.com/thedylone/FFT-accelerated" target="_blank" rel="noreferrer">Source</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="pk-main">
+    <section class="pk-hero pk-container">
+      <p class="pk-eyebrow">Project · Research</p>
+      <h1 class="pk-title">FFT Accelerated</h1>
+      <p class="pk-lede">One radix-2 Cooley–Tukey Fast Fourier Transform, written in serial C++ and rebuilt with OpenMP threads, MPI ranks, hand-written CUDA kernels and JIT-compiled JAX. Every version is timed end to end on the same inputs, from 2<sup>10</sup> to 2<sup>26</sup> complex doubles. Harvard CS 2050 final project.</p>
+      <div class="pk-actions">
+        <a class="pk-btn" href="#results">See the benchmarks <span aria-hidden="true">↓</span></a>
+        <a class="pk-btn pk-btn-secondary" href="https://github.com/thedylone/FFT-accelerated" target="_blank" rel="noreferrer">View code <span aria-hidden="true">→</span></a>
+      </div>
+      <ul class="pk-tags">
+        <li class="pk-tag">C++</li>
+        <li class="pk-tag">OpenMP</li>
+        <li class="pk-tag">MPI</li>
+        <li class="pk-tag">CUDA</li>
+        <li class="pk-tag">JAX</li>
+        <li class="pk-tag">VTune</li>
+        <li class="pk-tag">Nsight</li>
+      </ul>
+
+      <div class="pk-grid fft-stats">
+        <div class="pk-stat">
+          <span class="pk-label">OpenMP peak</span>
+          <div class="pk-stat-value" data-stat="omp-peak">7.48<small>×</small></div>
+          <div class="what"><span class="sw" style="background:var(--series-1)"></span>over serial</div>
+          <div class="ctx">32 threads at n = 2<sup>21</sup>, where the working set still fits in L3</div>
+        </div>
+        <div class="pk-stat">
+          <span class="pk-label">MPI peak</span>
+          <div class="pk-stat-value" data-stat="mpi-peak">2.69<small>×</small></div>
+          <div class="what"><span class="sw" style="background:var(--series-2)"></span>over serial</div>
+          <div class="ctx">32 ranks on one node at n = 2<sup>18</sup></div>
+        </div>
+        <div class="pk-stat">
+          <span class="pk-label">CUDA</span>
+          <div class="pk-stat-value" data-stat="cuda-peak">10.2<small>×</small></div>
+          <div class="what"><span class="sw" style="background:var(--series-3)"></span>over serial</div>
+          <div class="ctx">NVIDIA L4 at n = 2<sup>26</sup>, transfers included</div>
+        </div>
+        <div class="pk-stat">
+          <span class="pk-label">JAX on GPU</span>
+          <div class="pk-stat-value" data-stat="jax-peak">4.60<small>×</small></div>
+          <div class="what"><span class="sw" style="background:var(--series-5)"></span>over serial</div>
+          <div class="ctx">Same L4 at n = 2<sup>26</sup>, in about 40 lines of Python</div>
+        </div>
+      </div>
+      <p class="pk-callout fft-note">Every benchmark figure on this page is computed in your browser from the <code>results.csv</code> files in the repository. The serial baseline takes <span data-stat="serial-26">4,326</span> ms at n = 2<sup>26</sup>.</p>
+    </section>
+
+    <nav class="pk-subnav" aria-label="On this page">
+      <div class="pk-subnav-inner">
+        <ul>
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#method">Method</a></li>
+          <li><a href="#results">Results</a></li>
+          <li><a href="#scaling">Scaling and profiling</a></li>
+          <li><a href="#takeaways">Takeaways</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <section id="overview" class="pk-section">
+      <div class="pk-container">
+        <p class="pk-eyebrow">01 — Overview</p>
+        <h2 class="pk-h2">Fast in theory, stubborn in parallel</h2>
+        <div class="pk-prose">
+          <p>The FFT computes the Discrete Fourier Transform in <i>O</i>(<i>n</i> log <i>n</i>) instead of <i>O</i>(<i>n</i><sup>2</sup>). It makes polynomial multiplication, convolution and spectral analysis cheap. Cooley–Tukey divides and conquers: split the input into even and odd terms, transform each half, then combine them with a "butterfly" that yields two outputs for the price of one.</p>
+          <p>The iterative form makes the parallel structure plain. A bit-reversal permutation reorders the input, then log<sub>2</sub>(<i>n</i>) butterfly stages sweep the array in place. Each stage holds <i>n</i>/2 independent butterflies, so the work inside a stage is embarrassingly parallel. The stages themselves are strictly sequential, because stage <i>s</i> + 1 reads what stage <i>s</i> wrote. That leaves 26 synchronisation points per transform at n = 2<sup>26</sup>, whatever hardware you run on.</p>
+          <p>Each backend handles those synchronisation points differently: barriers, message exchanges or kernel launches. The benchmarks show how much each one costs.</p>
+        </div>
+
+        <div class="pk-card">
+          <span class="pk-label">Fair timing</span>
+          <h3 class="pk-h3" style="margin-top:0.4rem">What each benchmark measures</h3>
+          <p class="pk-muted" style="margin-top:0.6rem;font-size:0.95rem">Every implementation is timed from data in host memory to the result back in host memory, minus the cost of copying the input vector. GPU versions pay for their transfers, and JAX's JIT compile is excluded with a warm-up call. Correctness is checked by running FFT then inverse FFT and recovering the input within 10<sup>−9</sup>.</p>
+          <div class="pk-table-wrap fft-table">
+            <table class="pk-table">
+              <thead><tr><th>Implementation</th><th>Timed region</th></tr></thead>
+              <tbody>
+                <tr><td>Serial</td><td>In-place FFT on the host vector</td></tr>
+                <tr><td>OpenMP</td><td>In-place FFT on the host vector, threaded</td></tr>
+                <tr><td>MPI</td><td>FFT including the scatter and gather inside <code>fft()</code></td></tr>
+                <tr><td>CUDA</td><td><code>cudaMalloc</code> + host→device + kernels + device→host + <code>cudaFree</code></td></tr>
+                <tr><td>JAX</td><td><code>jnp.array()</code> (host→device) + JIT kernels + <code>numpy.array()</code> (device→host)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="pk-section">
+      <div class="pk-container">
+        <p class="pk-eyebrow">02 — Method</p>
+        <h2 class="pk-h2">Four backends, one baseline</h2>
+        <div class="pk-prose">
+          <p>The serial C++ version is the yardstick. It is compiled with <code>-O3 -march=native -ffast-math</code>, computes one twiddle factor per stage and updates it incrementally. Each parallel version keeps the same algorithm and the same <code>fft(a, direction)</code> interface.</p>
+        </div>
+        <div class="pk-grid">
+          <article class="pk-card backend">
+            <span class="pk-label">Shared memory</span>
+            <h3 class="pk-h3"><span class="sw" style="background:var(--series-1)"></span>OpenMP threads</h3>
+            <p>The bit-reversal indices are precomputed into a lookup table, so the swaps run as a <code>parallel for</code>. Each butterfly stage parallelises its loop over independent blocks with <code>schedule(static)</code>.</p>
+            <ul>
+              <li>Tested with 1, 2, 4, 8, 16 and 32 threads</li>
+              <li>Each stage ends in an implicit barrier, which turns out to be the main cost</li>
+            </ul>
+            <div class="src"><a href="https://github.com/thedylone/FFT-accelerated/tree/main/openmp">openmp/</a></div>
+          </article>
+          <article class="pk-card backend">
+            <span class="pk-label">Distributed memory</span>
+            <h3 class="pk-h3"><span class="sw" style="background:var(--series-2)"></span>MPI binary exchange</h3>
+            <p>Rank 0 bit-reverses the input and <code>MPI_Scatter</code>s <i>n</i>/<i>p</i> elements to each rank. Each rank runs the early stages locally. For the last log<sub>2</sub>(<i>p</i>) stages it swaps buffers with partner <code>rank XOR (1 &lt;&lt; d)</code> via <code>MPI_Sendrecv</code>. Finally <code>MPI_Gather</code> collects the result.</p>
+            <ul>
+              <li>Tested with 1 to 32 processes on a single node</li>
+              <li>Each rank holds only 2·<i>n</i>/<i>p</i> elements</li>
+            </ul>
+            <div class="src"><a href="https://github.com/thedylone/FFT-accelerated/tree/main/mpi">mpi/</a></div>
+          </article>
+          <article class="pk-card backend">
+            <span class="pk-label">GPU · hand-written</span>
+            <h3 class="pk-h3"><span class="sw" style="background:var(--series-3)"></span>Custom CUDA kernels</h3>
+            <p>A <code>bit_reverse_kernel</code> gives each thread one index to swap. Then log<sub>2</sub>(<i>n</i>) launches of <code>butterfly_kernel</code> give each of the <i>n</i>/2 threads one butterfly pair, with its twiddle computed by <code>sincos</code>. The kernel launch boundary replaces the CPU barrier.</p>
+            <ul>
+              <li>Block sizes 32 to 1024 on an NVIDIA L4 (58 SMs)</li>
+              <li>Profiled with Nsight Systems and Nsight Compute</li>
+            </ul>
+            <div class="src"><a href="https://github.com/thedylone/FFT-accelerated/tree/main/cuda">cuda/</a></div>
+          </article>
+          <article class="pk-card backend">
+            <span class="pk-label">GPU · compiled</span>
+            <h3 class="pk-h3"><span class="sw" style="background:var(--series-5)"></span>JIT-compiled JAX</h3>
+            <p>The same algorithm is written as array operations. Bit-reversal uses bitwise ops on an index array. Each stage reshapes the array into blocks, builds a twiddle vector and applies the butterfly by broadcasting. <code>@jax.jit</code> lowers the whole thing to XLA.</p>
+            <ul>
+              <li>Run on the same L4 GPU, and on CPU for comparison</li>
+              <li>About 40 lines, against about 110 for CUDA</li>
+            </ul>
+            <div class="src"><a href="https://github.com/thedylone/FFT-accelerated/tree/main/additional">additional/</a></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="pk-section">
+      <div class="pk-container">
+        <p class="pk-eyebrow">03 — Results</p>
+        <h2 class="pk-h2">Speedup across problem sizes</h2>
+        <div class="pk-prose">
+          <p>Each line uses that implementation's best configuration at every size: the fastest thread count, rank count or block size. Hover or tap to read exact values, and click a legend entry to hide a line.</p>
+        </div>
+
+        <figure class="pk-figure fft-figure">
+          <div class="pk-frame">
+            <div class="fig-head"><div>
+              <span class="pk-label">Figure 1</span>
+              <h3 class="pk-h3">Speedup over serial, best configuration per size</h3>
+              <div class="fig-sub">Serial time ÷ implementation time. Values above 1× are faster than serial.</div>
+            </div></div>
+            <div class="chart" id="chart-speedup"></div>
+            <div class="legend" id="legend-speedup"></div>
+          </div>
+        </figure>
+
+        <figure class="pk-figure fft-figure">
+          <div class="pk-frame">
+            <div class="fig-head"><div>
+              <span class="pk-label">Figure 2</span>
+              <h3 class="pk-h3">Runtime vs. problem size</h3>
+              <div class="fig-sub">Milliseconds per FFT, both axes logarithmic. The dashed line is serial.</div>
+            </div></div>
+            <div class="chart" id="chart-runtime"></div>
+            <div class="legend" id="legend-runtime"></div>
+          </div>
+        </figure>
+
+        <div class="pk-prose">
+          <p>Two regimes show up. On the CPU, OpenMP and MPI speedups <strong>peak and then fall</strong>. OpenMP is best at 2<sup>21</sup>, where the 32 MB working set fits in the node's 36 MB L3. Beyond that, data spills to DRAM and 32 threads compete for bandwidth. MPI peaks earlier, at 2<sup>18</sup>, because rank 0 has to touch the whole array to scatter and gather it. On the GPU, speedup <strong>keeps rising</strong> with <i>n</i> as launch and transfer overheads are amortised. CUDA overtakes serial at n = 2<sup>14</sup> and is the fastest implementation from 2<sup>17</sup> upward.</p>
+        </div>
+
+        <figure class="pk-figure fft-figure">
+          <div class="pk-frame">
+            <div class="fig-head">
+              <div>
+                <span class="pk-label">Figure 3 · explorer</span>
+                <h3 class="pk-h3">Speedup by configuration</h3>
+                <div class="fig-sub" id="explorer-sub">Speedup over serial for each configuration at the chosen size.</div>
+              </div>
+              <div class="controls">
+                <div class="pk-segmented" role="group" aria-label="Backend" id="explorer-backend">
+                  <button type="button" data-k="openmp" aria-pressed="true">OpenMP</button>
+                  <button type="button" data-k="mpi" aria-pressed="false">MPI</button>
+                  <button type="button" data-k="cuda" aria-pressed="false">CUDA</button>
+                </div>
+                <label>n = <select id="explorer-n" aria-label="Problem size"></select></label>
+              </div>
+            </div>
+            <div class="chart" id="chart-explorer"></div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section id="scaling" class="pk-section">
+      <div class="pk-container">
+        <p class="pk-eyebrow">04 — Scaling and profiling</p>
+        <h2 class="pk-h2">Why more cores stop helping</h2>
+        <div class="pk-prose">
+          <p>At n = 2<sup>26</sup>, 32 OpenMP threads run <span data-stat="omp-strong">4.65</span>× faster than one thread, against an ideal of 32×. MPI manages <span data-stat="mpi-strong">2.15</span>×. Little of the code is serial, since every stage is parallel. The limit is the per-stage synchronisation, which the report models with a barrier-to-work ratio α:</p>
+        </div>
+        <div class="pk-math" data-tex="T_p = \log_2 n \left( \frac{n\,c}{2p} + t_{\text{barrier}} \right)">T_p = log2(n) · (n·c / 2p + t_barrier)</div>
+        <div class="pk-math" data-tex="S(p) = \frac{p}{1 + 2(p-1)\,\alpha}, \quad \alpha = \frac{t_{\text{barrier}}}{n\,c}">S(p) = p / (1 + 2(p − 1)α),  α = t_barrier / (n·c)</div>
+        <div class="pk-prose">
+          <p>Fitting the 32-thread data gives α ≈ 0.095 for OpenMP. For MPI it gives α ≈ 0.22, which reflects the extra cost of <code>MPI_Sendrecv</code> over a barrier.</p>
+        </div>
+
+        <figure class="pk-figure fft-figure">
+          <div class="pk-frame">
+            <div class="fig-head"><div>
+              <span class="pk-label">Figure 4</span>
+              <h3 class="pk-h3">Weak scaling efficiency</h3>
+              <div class="fig-sub">Fixed work of 2<sup>21</sup> elements per worker: efficiency = T(1, 2<sup>21</sup>) ÷ T(p, p·2<sup>21</sup>). Ideal is 100%.</div>
+            </div></div>
+            <div class="chart" id="chart-weak"></div>
+            <div class="legend" id="legend-weak"></div>
+          </div>
+        </figure>
+
+        <div class="pk-grid">
+          <div class="pk-card">
+            <span class="pk-label">Profiling · Intel VTune</span>
+            <h3 class="pk-h3" style="margin-top:0.4rem">Where OpenMP's CPU time goes</h3>
+            <p class="pk-muted" style="margin-top:0.5rem;font-size:0.9rem">Hotspots, 32 threads, all benchmark sizes. Total CPU time 566.5 s.</p>
+            <div class="chart" id="chart-vtune"></div>
+            <p style="margin-top:0.75rem;font-size:0.92rem" class="pk-muted">Only 31.9% of CPU time is butterfly arithmetic. <strong>54.4%</strong> is spent spinning in libgomp barriers. The threading analysis agrees: effective CPU utilisation is 12.4% (5.9 of 48 logical CPUs), and spin and overhead account for 59.1% of CPU time, with zero lock contention.</p>
+          </div>
+          <div class="pk-card">
+            <span class="pk-label">Profiling · Nsight</span>
+            <h3 class="pk-h3" style="margin-top:0.4rem">What limits the GPU</h3>
+            <ul class="fft-list pk-muted" style="margin-top:0.75rem;font-size:0.95rem">
+              <li>At n = 1024 only 512 butterfly threads launch, too few to fill 58 SMs. This is why the GPU loses to serial at small sizes.</li>
+              <li>Each butterfly reads and writes two complex doubles (32 bytes) for a handful of FLOPs. The kernel is <strong>memory-bound</strong>, so block size barely matters at scale: at n = 2<sup>26</sup> the six block sizes are within 3.5% of each other.</li>
+              <li>Kernel launches are cheap enough that log<sub>2</sub>(<i>n</i>) launches cost far less than log<sub>2</sub>(<i>n</i>) CPU barriers.</li>
+              <li>JAX on GPU runs <span data-stat="jax-vs-cuda">2.2</span>× slower than CUDA at 2<sup>26</sup>. Transfers that go through the Python runtime outweigh XLA's kernel fusion. On CPU, JAX is <span data-stat="jaxcpu-slow">8.6</span>× slower than serial C++.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="pk-card">
+          <span class="pk-label">Summary at n = 2<sup>26</sup></span>
+          <h3 class="pk-h3" style="margin-top:0.4rem">Best configuration per implementation</h3>
+          <div class="pk-table-wrap fft-table">
+            <table class="pk-table" id="summary-table">
+              <thead><tr><th>Implementation</th><th>Best config</th><th class="num">Time (ms)</th><th class="num">Speedup vs serial</th><th class="num">Peak speedup (any n)</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <details class="data">
+            <summary>Show all raw timings</summary>
+            <div class="pk-table-wrap"><table class="pk-table" id="raw-table"></table></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section id="takeaways" class="pk-section">
+      <div class="pk-container">
+        <p class="pk-eyebrow">05 — Takeaways</p>
+        <h2 class="pk-h2">The bottleneck moves with the hardware</h2>
+        <div class="pk-prose">
+          <ul class="fft-list">
+            <li><strong>OpenMP</strong> is limited by how often it synchronises. It works best at moderate sizes and 8–16 threads, where each thread's chunk is large enough to cover a barrier's cost.</li>
+            <li><strong>MPI</strong> adds scatter, gather and pairwise exchange on top of the stage dependency. On one node it cannot beat shared memory. Its strength would show on problems too large for a single node's memory.</li>
+            <li><strong>CUDA</strong> turns each stage into a cheap kernel launch over massive parallelism. The limit becomes memory bandwidth, and the result is the fastest implementation from n = 2<sup>17</sup> upward.</li>
+            <li><strong>JAX</strong> reaches about half of CUDA's speed with roughly a third of the code. It would gain more if the data stayed on the GPU across operations.</li>
+          </ul>
+          <p style="margin-top:1.5rem">The full write-up, with derivations and every plot, is in the <a href="https://github.com/thedylone/FFT-accelerated/blob/main/report/report.md">project report</a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pk-footer">
+    <div class="pk-footer-inner">
+      <span>© 2026 Dylan Chua</span>
+      <div class="pk-footer-links">
+        <a href="https://projects.thedylone.com/">All projects</a>
+        <a href="https://thedylone.com">Portfolio</a>
+        <a href="https://github.com/thedylone" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
